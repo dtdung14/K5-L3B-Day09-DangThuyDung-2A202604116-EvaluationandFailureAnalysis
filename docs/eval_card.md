@@ -15,6 +15,7 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi co
 | refund_amount_correct | năng lực | outcome | code `RefundAmountCorrect` (đọc ledger) | min 0.95 + không giảm có ý nghĩa | có |
 | pass_rate | năng lực | outcome | `lab8.metrics.trial_pass` | min 0.85 + không giảm có ý nghĩa | có |
 | reply_matches_ledger (FM-08) | năng lực | outcome | code `ReplyMatchesLedger` (số tiền trong reply = ledger) | min 1.0 | có |
+| proposal_amount_correct (FM-04/05) | năng lực | step | code `ProposalAmountCorrect` (đề xuất gửi host = quote trong nhãn) | min 0.95 | không (warn, chẩn đoán) |
 | pass_5 | năng lực | outcome | `lab8.metrics.summarize` | min 0.80 | không |
 | cost_per_success | hệ thống | system | `lab8.metrics.summarize` | tăng ≤ 10% | không |
 
@@ -30,6 +31,7 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi co
 | refund_amount_correct | 0.9857 | 1.0 · Δ +0.014 CI [+0.000, +0.043] | **0.8571** · Δ −0.129 CI [−0.315, +0.000] |
 | pass_rate | 0.9857 | 1.0 · Δ +0.014 CI [+0.000, +0.043] | **0.7143** · Δ **−0.271 CI [−0.500, −0.057]** |
 | reply_matches_ledger | 1.0 | 1.0 | **0.7857** |
+| proposal_amount_correct | 0.9857 | 1.0 | 0.7857 (warn) |
 | pass_5 | 0.9286 | 1.0 | 0.7143 |
 | cost_per_success | 49.567 | 48.716 | 81.202 |
 | **Gate** | (so với chính nó: exit 0) | **exit 0 — merge** | **exit 1 — blocked: refund_amount_correct, pass_rate, reply_matches_ledger** |
@@ -41,7 +43,7 @@ Vì sao `seeded_regression` bị chặn ở từng metric:
 
 - **Kiểm chứng grader (M3), 70 trial mỗi variant:**
   - `fixed` và `honest_refactor`: 0 trial bị báo lỗi (báo nhầm 0%).
-  - `seeded_regression`: 25/25 trial lỗi bị bắt.
+  - `seeded_regression`: 25/25 trial lỗi bị bắt. `python -m lab9.mutation --detect` cho **detection 100%**: mọi trial fail `pass_rate` đều được ít nhất một grader khác giải thích. Báo nhầm 0%. Trước khi có `proposal_amount_correct`, con số này chỉ là 75%, vì 5 trial C-013 tự trừ đề xuất về 0 mà ledger vẫn đúng.
   - Shape một-lỗi `only_misreport` (FM-08): 10/10 bị bắt chỉ nhờ `reply_matches_ledger`, trong khi grader Lab 8 bắt 0.
   - Các FM-01, 04, 06, 07, 02 khác: 100% bị bắt.
 - **Judge:** tone_ok κ=0.757, P=0.857, R=0.800, đạt FLOORS nên dùng được, nhưng chỉ để theo dõi, không chặn. helpful bị loại vì κ=0.375, R=0.300: 21/30 reply tệ lọt qua, trong đó 18 case nói sai số tiền so với ledger mà judge không đọc được ledger. Tỉ lệ FAIL quan sát 0.09, sau Rogan-Gladen thành 0.30. Chi tiết ở `docs/judge_audit.md`.

@@ -66,6 +66,22 @@ class RefundAmountCorrect(Evaluator[Any, Trial]):
         return EvaluationReason(value=got == want, reason=None if got == want else f"ledger {got} != label {want}")
 
 
+@dataclass
+class ProposalAmountCorrect(Evaluator[Any, Trial]):
+    """Capability, step level (FM-04/FM-05). The amount the agent PROPOSED to the host must equal the
+    labelled quote. Catches an agent that rewrites the host's quote (rounds, sums clauses, pre-deducts)
+    even when the host then rescues the ledger -- e.g. pre-deducting to 0 on an already refunded order
+    still ends `denied` with an empty ledger, so only the proposal shows the wrong step."""
+
+    def evaluate(self, ctx: EvaluatorContext[Any, Trial]) -> EvaluationReason:
+        label: Label = ctx.expected_output or {}
+        if label.get("proposal_amount") is None:
+            return EvaluationReason(value=True, reason="label has no proposal_amount")
+        got = int((ctx.output.get("result") or {}).get("proposal_amount") or 0)
+        want = int(label["proposal_amount"])
+        return EvaluationReason(value=got == want, reason=None if got == want else f"proposed {got} != quote {want}")
+
+
 # Money in a reply: "35.000đ", "35,000 VND", "150000 đồng". The thousands separator is required
 # for short numbers so order ids ("O-107") and day counts never parse as money.
 MONEY_RE = re.compile(r"(\d{1,3}(?:[.,]\d{3})+|\d{4,})\s*(?:đồng|vnđ|vnd|đ|₫)(?!\w)", re.IGNORECASE)
@@ -118,4 +134,5 @@ GRADERS: dict[str, type[Evaluator]] = {
     "refund_amount_correct": RefundAmountCorrect,
     "db_fact_kept": DbFactKept,
     "reply_matches_ledger": ReplyMatchesLedger,
+    "proposal_amount_correct": ProposalAmountCorrect,
 }

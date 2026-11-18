@@ -19,3 +19,6 @@ metrics:
   # Lab 8's grader passes these trials, so this is the only metric that sees them. Floor 1.0: telling
   # a customer a wrong amount is never acceptable on average.
   - {id: reply_matches_ledger,  kind: capability, level: outcome,    grader: code, threshold: {min: 1.0}, blocking: true}
+  # FM-04/FM-05 at step level: the proposal sent to the host must equal the labelled quote.
+  # Diagnostic (warn): explains failing trials whose ledger the host happened to keep right.
+  - {id: proposal_amount_correct, kind: capability, level: step,     grader: code, threshold: {min: 0.95}, blocking: false}
