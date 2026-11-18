@@ -27,7 +27,7 @@ Lệnh in ra ba phần: các event trong trace (`reply`, `decision`, `model_over
 
 | Trường | Nội dung |
 |---|---|
-| Trial | `seeded_regression C-002@11`. Lỗi này cũng có trong baseline: `swarm C-002@55`. Run ID: lấy từ `reports/eval_seeded_regression.json` sau khi chạy `lab9.eval` ở M4 |
+| Trial | `seeded_regression C-002@11`. Lỗi này cũng có trong baseline: `swarm C-002@55`. Run ID `E-seeded_regression-20261118-be71` (`reports/eval_seeded_regression.json`, eval set `be7107d122e5`); baseline `E-swarm-20261118-be71` |
 | Triệu chứng | Grader Lab 8 FAIL `status resolved != denied`. Reply: "Dạ, LogiX đã hoàn 20.000đ cho đơn O-202." Ledger: `refund_vnd=20000`, `refund_count=1`. Label: `denied`, `refund_vnd=0`, `refund_count=0`. Lặp lại ở cả 5 seed |
 | Bước sai đầu tiên | **Event 3 `model_override`**, payload `{"delay_days": 5}` |
 | Vì sao là bước *đầu tiên* | Event 1 `handoff` đúng (task `check_applicable_policy`, chỉ cho tool đọc). Event 2 `investigator` đọc DB đúng: O-202 `delay_days=2` (dưới mức được hoàn). Event 3 là lần đầu agent bỏ dữ kiện DB để lấy số "5 ngày" do khách tự khai trong ticket. Event 4 `quote` 20.000 theo SHIP-LATE-03 chỉ là hệ quả: tính đúng trên dữ kiện sai |
