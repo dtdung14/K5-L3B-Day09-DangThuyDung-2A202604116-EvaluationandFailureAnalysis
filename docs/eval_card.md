@@ -63,3 +63,48 @@ Vì sao `seeded_regression` bị chặn ở từng metric:
   - **`reply_matches_ledger` chỉ chấm được shape có event `reply`.** `swarm` gốc không sinh reply nên metric luôn bằng 1.0 trên baseline.
   - **Chưa đo trên người dùng thật.**
 - **Khi nào tăng eval-set version:** khi thêm item, ví dụ từ trace case (`provenance.from_trace`) hoặc adversarial pack v2; khi sửa nhãn (như H-081); hoặc khi đổi `failure_modes`. Mỗi lần tăng phải chạy lại baseline trên nhánh `main` và commit bằng `git add -f`. Trên cùng một version, ngưỡng chỉ được chặt hơn (ratchet).
+
+---
+
+## v2 (M5–M6): slice, nhiễu và pass^k
+
+- **Run ID / eval set SHA:** baseline `E-swarm-20261118-86f4` · `E-slice_regression-20261118-86f4` · `E-flaky_regression-20261118-86f4` · eval set v2 `86f412817964`. metric_spec `2.0` (`config/metric_spec_v2.yaml`).
+- **Eval set v2:** 28 item = 14 item v1 + 14 item adversarial pack (`split: adversarial`, `provenance.source: instructor_adversarial`).
+  - Cơ chế tấn công được ánh xạ sang mã FM ở `config/fm_map.yaml`.
+  - Mỗi FM bị tấn công có ≥ 3 item: FM-02 ×5, FM-03 ×4, FM-04 ×8, FM-05 ×5, FM-06 ×3, FM-07 ×5, FM-08 ×5, FM-09 ×4.
+  - `evalset --v2` báo 0 problem.
+  - Slice tag suy ra từ **nhãn**, không từ output của agent: `money_movement` 12, `adversarial` 14, `denial` 11, `escalation` 4.
+
+### Ngưỡng chọn từ A/A
+`python -m lab9.mutation --spec config/metric_spec_v2.yaml --aa 66,77,88,99,110` chạy `swarm` trên seed của spec (11…55) và trên một bộ seed khác (66…110):
+
+| metric | seed spec | seed khác | Δ |
+|---|---|---|---|
+| pass_rate | 0.9786 | 0.9786 | +0.0000 |
+| pass_hat_3 | 0.9357 | 0.9357 | +0.0000 |
+| pass_hat_5 | 0.8929 | 0.8929 | +0.0000 |
+| (mọi metric khác) | | | +0.0000 |
+
+- **Vì sao Δ = 0:** MockLLM là tất định theo (claim, seed); lỗi của `swarm` chỉ xảy ra khi `seed % 5 == 0`, và cả hai bộ seed đều có đúng 1 seed như vậy (55 và 110). Dải nhiễu A/A trên MockLLM vì thế có độ rộng 0.
+- **Với LLM thật, dải nhiễu > 0:** sampling (temperature, thứ tự token), thay đổi phía nhà cung cấp, và timeout/retry của tool làm cùng một agent cho kết quả khác nhau giữa hai lần chạy. Nếu đặt sàn **bên trong** dải đó, gate sẽ chặn ngẫu nhiên các PR trung thực (báo nhầm). Quy trình đúng:
+  1. Chạy A/A nhiều lần.
+  2. Đo biên độ |Δ| lớn nhất.
+  3. Đặt sàn ≤ baseline − biên độ đó, và chỉ siết lại khi có bằng chứng.
+- **Sàn `pass_hat_5` = 0.85 (blocking):** baseline 0.8929 nằm trên sàn với khoảng cách 0.043, tức ~1.2 item trên 28; Δ A/A = 0. Mức này thỏa yêu cầu ≥ 0.8 và cao hơn nhiều so với `flaky_regression` (0.5714). `pass_hat_5` không dùng `no_significant_drop` vì nó là ước lượng theo item, không có giá trị trên từng dòng để bootstrap.
+
+### Slice nào bắt lỗi nào
+
+| Variant | pass_rate TB | pass_hat_5 | Bị chặn bởi | Gate |
+|---|---|---|---|---|
+| `fixed` | 1.0 | 1.0 | — | merge |
+| `honest_refactor` | 1.0 | 1.0 | — | merge (không báo nhầm) |
+| `slice_regression` (cộng clause, seed lẻ, chỉ claim có tiền) | **0.9357** (trên sàn 0.85; CI [−0.121, +0.029] chạm 0) | 0.8929 (= baseline) | **chỉ slice**: `money_movement/pass_rate` 0.85 < 0.95, `money_movement/refund_amount_correct` 0.85, `adversarial/refund_amount_correct` 0.9143 < 0.95 | block |
+| `flaky_regression` (làm tròn, 1/5 seed) | 0.9143 (trên sàn) | **0.5714** | **`pass_hat_5`** < 0.85; slice `money_movement`. `pass_rate` bị chặn chỉ vì CI [−0.114, −0.014] tình cờ nằm hẳn dưới 0 trên bộ seed này, không ổn định | block |
+| `seeded_regression` | 0.6429 | thấp | toàn cục + mọi slice | block |
+
+`python -m lab9.mutation --spec config/metric_spec_v2.yaml --baseline reports/baseline_v2.json` cho **mutation score 3/3, 0 báo nhầm**.
+
+### Giới hạn cỡ mẫu
+- **Bug 1/3 seed (`rare`) không phát hiện ổn định với 5 seed.** Điều kiện `seed % 3 == 0` chỉ trúng 1 seed trong {11, 22, 33, 44, 55}, nhưng trúng 2 seed trong {66, 77, 88, 99, 110}, nên mức độ lỗi thấy được phụ thuộc vào bộ seed. Với xác suất lỗi p trên mỗi lần chạy, xác suất 5 seed không thấy lỗi nào là (1 − p)^5: với p = 1/10 là 0.59, với p = 1/20 là 0.77. Muốn bắt được bug hiếm cần **nhiều seed hơn**, không phải hạ ngưỡng cho tới khi gate "bắt được" trên bộ seed hiện tại (làm vậy là overfit vào seed).
+- Slice nhỏ: `money_movement` 12 item, `escalation` 4 item. CI theo slice rộng (slice_regression: [−0.300, +0.000]), nên phải dựa vào **sàn tuyệt đối** của slice; CI một mình không đủ để chặn.
+- Baseline v2 vẫn mang lỗi FM-03 của `swarm` ở seed 55, ảnh hưởng `adversarial/pass_rate` = 0.971 và `denial/pass_rate` = 0.945. Sàn slice đặt dưới các giá trị này.
