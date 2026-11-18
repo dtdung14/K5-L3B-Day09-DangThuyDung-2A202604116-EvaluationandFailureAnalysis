@@ -108,3 +108,47 @@ Vì sao `seeded_regression` bị chặn ở từng metric:
 - **Bug 1/3 seed (`rare`) không phát hiện ổn định với 5 seed.** Điều kiện `seed % 3 == 0` chỉ trúng 1 seed trong {11, 22, 33, 44, 55}, nhưng trúng 2 seed trong {66, 77, 88, 99, 110}, nên mức độ lỗi thấy được phụ thuộc vào bộ seed. Với xác suất lỗi p trên mỗi lần chạy, xác suất 5 seed không thấy lỗi nào là (1 − p)^5: với p = 1/10 là 0.59, với p = 1/20 là 0.77. Muốn bắt được bug hiếm cần **nhiều seed hơn**, không phải hạ ngưỡng cho tới khi gate "bắt được" trên bộ seed hiện tại (làm vậy là overfit vào seed).
 - Slice nhỏ: `money_movement` 12 item, `escalation` 4 item. CI theo slice rộng (slice_regression: [−0.300, +0.000]), nên phải dựa vào **sàn tuyệt đối** của slice; CI một mình không đủ để chặn.
 - Baseline v2 vẫn mang lỗi FM-03 của `swarm` ở seed 55, ảnh hưởng `adversarial/pass_rate` = 0.971 và `denial/pass_rate` = 0.945. Sàn slice đặt dưới các giá trị này.
+
+## M7: chống gian lận eval (`gate.integrity_check`)
+
+Gate từ chối so sánh khi report không đáng tin. Mọi vấn đề được in ra với tiền tố `INTEGRITY`, và gate trả `exit 1 — blocked: integrity`. Danh sách kiểm tra:
+
+| Nhóm | Kiểm tra |
+|---|---|
+| Giá trị | Metric NaN/inf trong `pr["metrics"]`; metric có trong spec nhưng vắng mặt trong report |
+| Grader | `evaluator_failures` khác rỗng (kể cả khi run xanh); dòng có giá trị `None`, NaN hoặc không phải bool cho metric được chấm |
+| Độ phủ | Dòng trùng (item, seed); số dòng ≠ items × seeds của **baseline** và của chính manifest PR; manifest (items, seeds, eval_set, metric_spec_version) khác baseline; seeds khác spec; tập (item, seed) khác baseline |
+| Slice | Slice tag của một item trong PR khác baseline (đẩy item ra khỏi slice) |
+| Số tổng | Metric tổng không khớp khi tính lại từ rows (bao gồm `pass_5`, `pass_at_k`, `pass_hat_k`): bắt report bị sửa sau khi chạy |
+| Ratchet (`--base-spec`, cùng `eval_set_version`) | Metric hoặc slice bị bỏ; `min` hạ; `max`/`max_increase` tăng; blocking → non-blocking; bỏ `no_significant_drop`; đổi `kind`; đổi seeds, pass_k, eval_set/labels/pack; đổi `bootstrap.rng`/`method`, tăng `confidence`, giảm `n_resamples` |
+
+Kết quả `python -m lab9.traps --pr reports/eval_slice_regression.json --baseline reports/baseline_v2.json --spec config/metric_spec_v2.yaml`: **exit 0, cả 4 trap bị chặn**.
+
+| Trap | Lý do chặn (dòng `INTEGRITY` đầu tiên) |
+|---|---|
+| `evaluator_errors_as_nan` | `row E-014@11: refund_amount_correct is None (crashed/missing grade)` + metric NaN |
+| `dropped_failing_rows` | `131 rows, baseline manifest says 28 items x 5 seeds = 140` |
+| `cherry_picked_seeds` | `56 rows …`; `report seeds [22, 44] != spec seeds [11, 22, 33, 44, 55]` |
+| `loosened_spec` (`--base-spec`) | `RATCHET metric db_fact_kept: min 0.95 -> 0.65`, bỏ `no_significant_drop`, bỏ slice |
+
+Mình tự chế thêm các trap mô phỏng trap ẩn, và tất cả đều bị chặn:
+- dòng trùng thay cho dòng fail;
+- sửa tay `pass_rate` thành 0.99 mà giữ nguyên rows;
+- `evaluator_failures` trên run `fixed` xanh;
+- bỏ tag `money_movement` khỏi item;
+- grade kiểu chuỗi;
+- slice chuyển sang non-blocking;
+- đổi `bootstrap.rng`;
+- xóa metric `pass_hat_5`.
+
+Không báo nhầm:
+- baseline v1 và v2 so với chính nó (có hoặc không `--base-spec`) đều merge;
+- `fixed` merge;
+- `lab9.mutation` vẫn 3/3, 0 báo nhầm.
+
+**Trap ẩn nào vẫn có thể lọt** (giới hạn của một gate chỉ đọc report):
+- **Sửa file nhãn.** `eval_set_sha` chỉ băm file item, không băm `labels_v*.json`. Một PR sửa nhãn cho khớp với agent lỗi, rồi chạy lại cả baseline lẫn PR, sẽ qua. Cách chặn: đưa SHA của nhãn vào manifest, và bảo vệ file nhãn bằng CODEOWNERS.
+- **Sửa grader.** Một PR làm `graders.py` dễ dãi hơn rồi sinh report mới sẽ cho report nhất quán và hợp lệ. Cách chặn: ghi commit của grader vào manifest, chạy eval trong CI từ code của nhánh chính, và review riêng mọi thay đổi ở `lab9/graders.py`.
+- **Baseline bị làm đẹp nhất quán.** Integrity so PR với baseline; nếu baseline trên `main` cũng bị bỏ dòng theo cùng cách thì hai bên khớp nhau. `ci_check` (chạy lại `swarm` trong CI) đã chặn trường hợp này cho v1; v2 chưa có bước tương tự.
+- **Agent "học đề".** Agent nhận ra claim_id hoặc seed của eval set để xử lý riêng. Report hoàn toàn thật nên integrity không thấy gì. Cách chặn: tập held-out ẩn, đổi seed định kỳ.
+- **Bug hiếm** (1/3 seed, `rare`) không phải gian lận nhưng vẫn lọt vì cỡ mẫu (xem mục v2).
