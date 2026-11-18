@@ -2,8 +2,8 @@
 
 Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi con số dưới đây chép từ `src/reports/*.json`, là file do `python -m lab9.eval` sinh ra, không sửa tay.
 
-- **Run ID / eval set SHA:** baseline `E-swarm-20261118-be71` · PR đối chứng `E-fixed-20261118-be71`, `E-seeded_regression-20261118-be71` · eval set `be7107d122e5`
-- **Phiên bản:** code `ca14765` (nhánh `starter/d09`) · eval set v1 (sha `be7107d122e5`) · metric_spec `1.0` · grader (commit) `50318c4` · seeds 11/22/33/44/55 · MockLLM · Python 3.13.7
+- **Run ID / eval set SHA:** baseline `E-swarm-20261118-b57a` · PR đối chứng `E-fixed-20261118-b57a`, `E-seeded_regression-20261118-b57a` · eval set `b57a8fc88a2c`
+- **Phiên bản:** code: commit chứa các report này trên `main` · eval set v1 (sha `b57a8fc88a2c`) · metric_spec `1.0` · grader (commit) `6f2c0d2` · seeds 11/22/33/44/55 · MockLLM · Python 3.13.7
 - **Eval set:** v1, 14 item × 5 seed = 70 trial. Nguồn `lab8_public` (ma trận T01–T14). Nhãn nằm riêng ở `labels_v1.json`. Mỗi item có `failure_modes` lấy từ `docs/failure_taxonomy.md` (FM-01…FM-09) và `provenance` (source, matrix_id, label_by).
 - **Metric & ngưỡng:** trích từ `src/config/metric_spec.yaml`
 
@@ -68,7 +68,7 @@ Vì sao `seeded_regression` bị chặn ở từng metric:
 
 ## v2 (M5–M6): slice, nhiễu và pass^k
 
-- **Run ID / eval set SHA:** baseline `E-swarm-20261118-86f4` · `E-slice_regression-20261118-86f4` · `E-flaky_regression-20261118-86f4` · eval set v2 `86f412817964`. metric_spec `2.0` (`config/metric_spec_v2.yaml`).
+- **Run ID / eval set SHA:** baseline `E-swarm-20261118-9e1c` · `E-slice_regression-20261118-9e1c` · `E-flaky_regression-20261118-9e1c` · eval set v2 `9e1c59ba31f1`. metric_spec `2.0` (`config/metric_spec_v2.yaml`).
 - **Eval set v2:** 28 item = 14 item v1 + 14 item adversarial pack (`split: adversarial`, `provenance.source: instructor_adversarial`).
   - Cơ chế tấn công được ánh xạ sang mã FM ở `config/fm_map.yaml`.
   - Mỗi FM bị tấn công có ≥ 3 item: FM-02 ×5, FM-03 ×4, FM-04 ×8, FM-05 ×5, FM-06 ×3, FM-07 ×5, FM-08 ×5, FM-09 ×4.
